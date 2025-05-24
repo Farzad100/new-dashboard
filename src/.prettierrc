@@ -1,0 +1,7 @@
+{
+  "proseWrap": "preserve",
+  "quoteProps": "preserve",
+  "trailingComma": "all",
+  "semi": false,
+  "singleQuote": true
+}

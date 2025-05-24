@@ -1,0 +1,1 @@
+export const isTrueStr = param => param === 'true'

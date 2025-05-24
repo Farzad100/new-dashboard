@@ -1,0 +1,128 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  NEXUS_REPOSITORY: hub.sarmayex.com
+  IMAGE_DEV_LATEST_TAGGED_NAME: $NEXUS_REPOSITORY/front/p2padmin/dev:latest
+  IMAGE_STG_LATEST_TAGGED_NAME: $NEXUS_REPOSITORY/front/p2padmin/stg:latest
+  IMAGE_PRODUCTION_TAGGED_NAME: $NEXUS_REPOSITORY/front/p2padmin/prod:$CI_PIPELINE_ID
+  IMAGE_PRODUCTION_LATEST_TAGGED_NAME: $NEXUS_REPOSITORY/front/p2padmin/prod:latest
+  DOCKER_DRIVER: overlay
+
+##################### Develop #####################
+Dev_build:
+  stage: build
+  image: docker:stable-dind
+  only:
+    - develop
+  before_script:
+    - echo $NEXUS_PASSWORD | docker login --username $NEXUS_USER --password-stdin $NEXUS_REPOSITORY
+  script:
+    #- cp $ENV_DEV .env
+    - docker build --no-cache -t $IMAGE_DEV_LATEST_TAGGED_NAME .
+    - docker push $IMAGE_DEV_LATEST_TAGGED_NAME
+  tags:
+    - develop
+
+Dev_deploy:
+  stage: deploy
+  image: alpine:3.12
+  only:
+    - develop
+  before_script:
+    - apk add --no-cache --no-progress openssh-client
+    - mkdir ~/.ssh
+    - echo "StrictHostKeyChecking no" > ~/.ssh/config
+    - echo "UserKnownHostsFile=/dev/null" >> ~/.ssh/config
+    - cp ${CI_PRIVATE_KEY} ~/.ssh/id_ed25519
+    - chmod 600 ~/.ssh/id_ed25519
+  script:
+    - |
+      ssh root@$CI_DEV_FRONT_NODES << EOF
+        echo $NEXUS_PASSWORD | docker login --username $NEXUS_USER --password-stdin $NEXUS_REPOSITORY
+        docker pull $IMAGE_DEV_LATEST_TAGGED_NAME
+        docker rm -f dev-admin-zarinworld
+        docker run -d --name dev-admin-zarinworld --restart always -p 127.0.0.1:1040:3000 $IMAGE_DEV_LATEST_TAGGED_NAME
+      EOF
+  tags:
+    - develop
+
+##################### Stage #####################
+#Stg_build:
+#  stage: build
+#  image: docker:stable-dind
+#  only:
+#    - stage
+#  before_script:
+#    - echo $NEXUS_PASSWORD | docker login --username $NEXUS_USER --password-stdin $NEXUS_REPOSITORY
+#  script:
+#    #- cp $ENV_STG .env
+#    - docker build --no-cache -t $IMAGE_STG_LATEST_TAGGED_NAME .
+#    - docker push $IMAGE_STG_LATEST_TAGGED_NAME
+#  tags:
+#    - develop
+#
+#Stg_deploy:
+#  stage: deploy
+#  image: alpine:3.12
+#  only:
+#    - stage
+#  before_script:
+#    - apk add --no-cache --no-progress openssh-client
+#    - mkdir ~/.ssh
+#    - echo "StrictHostKeyChecking no" > ~/.ssh/config
+#    - echo "UserKnownHostsFile=/dev/null" >> ~/.ssh/config
+#    - cp ${CI_PRIVATE_KEY} ~/.ssh/id_ed25519
+#    - chmod 600 ~/.ssh/id_ed25519
+#  script:
+#    - |
+#      ssh root@$CI_DEV_FRONT_NODES << EOF
+#        echo $NEXUS_PASSWORD | docker login --username $NEXUS_USER --password-stdin $NEXUS_REPOSITORY
+#        docker pull $IMAGE_STG_LATEST_TAGGED_NAME
+#        docker rm -f stg-finbang
+#        docker run -d --name stg-finbang --restart always -p 127.0.0.1:1031:3000 $IMAGE_STG_LATEST_TAGGED_NAME
+#      EOF
+#  tags:
+#    - develop
+#
+###################### Prod #####################
+#Prod_build:
+#  stage: build
+#  image: docker:stable-dind
+#  only:
+#    - master
+#  before_script:
+#    - echo $NEXUS_PASSWORD | docker login --username $NEXUS_USER --password-stdin $NEXUS_REPOSITORY
+#  script:
+#    #- cp $ENV_PROD .env
+#    - docker build --no-cache -t $IMAGE_PRODUCTION_LATEST_TAGGED_NAME .
+#    - docker tag $IMAGE_PRODUCTION_LATEST_TAGGED_NAME $IMAGE_PRODUCTION_TAGGED_NAME
+#    - docker push $IMAGE_PRODUCTION_LATEST_TAGGED_NAME
+#    - docker push $IMAGE_PRODUCTION_TAGGED_NAME
+#    - docker rmi -f $IMAGE_PRODUCTION_LATEST_TAGGED_NAME $IMAGE_PRODUCTION_TAGGED_NAME
+#  tags:
+#    - prod-front
+#
+#Prod_deploy:
+#  stage: deploy
+#  image: alpine:3.12
+#  only:
+#    - master
+#  before_script:
+#    - apk add --no-cache --no-progress openssh-client
+#    - mkdir ~/.ssh
+#    - echo "StrictHostKeyChecking no" > ~/.ssh/config
+#    - echo "UserKnownHostsFile=/dev/null" >> ~/.ssh/config
+#    - cp ${CI_PRIVATE_KEY} ~/.ssh/id_ed25519
+#    - chmod 600 ~/.ssh/id_ed25519
+#  script:
+#    - |
+#      ssh root@$CI_PROD_FRONT_NODES << EOF
+#        echo $NEXUS_PASSWORD | docker login --username $NEXUS_USER --password-stdin $NEXUS_REPOSITORY
+#        docker pull $IMAGE_PRODUCTION_TAGGED_NAME
+#        docker rm -f prod-finbang
+#        docker run -d --name prod-finbang --restart always -p 127.0.0.1:1030:3000 $IMAGE_PRODUCTION_TAGGED_NAME
+#      EOF
+#  tags:
+#    - prod-front
